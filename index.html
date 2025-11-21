@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>錢錢去哪兒 Where’s the money</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        /* 自定義滾動條 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* 動畫 */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+
+        /* 隱藏數字輸入框箭頭 */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+
+        /* 底部導航安全區 */
+        .safe-area-pb { padding-bottom: env(safe-area-inset-bottom, 20px); }
+        
+        /* UI 輔助類 */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .nav-btn.active { color: #1e293b; }
+        .nav-btn.active div { background-color: #f1f5f9; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-700 antialiased flex justify-center min-h-screen">
+
+    <div class="w-full max-w-md bg-slate-50 min-h-screen flex flex-col relative shadow-2xl">
+        
+        <header class="px-6 pt-8 pb-4 bg-white sticky top-0 z-20 border-b border-slate-100">
+            <div class="flex justify-between items-start">
+                <div class="flex flex-col">
+                    <h1 class="text-xl font-bold text-slate-800 tracking-tight">錢錢去哪兒</h1>
+                    <h2 class="text-sm font-medium text-slate-400 -mt-0.5">Where’s the money</h2>
+                </div>
+                <div class="text-xs text-slate-300">
+                    免金鑰版
+                </div>
+            </div>
+        </header>
+
+        <main class="flex-1 p-6 overflow-y-auto pb-24">
+            
+            <div id="tab-converter" class="tab-content active animate-fade-in">
+                <div class="space-y-6">
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-xl font-semibold text-slate-800">匯率計算</h2>
+                            <button onclick="fetchRates()" id="refresh-btn" class="p-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 focus-within:ring-2 focus-within:ring-slate-200 transition-all">
+                                <label class="block text-xs font-medium text-slate-400 mb-1">持有貨幣</label>
+                                <div class="flex items-center justify-between">
+                                    <input type="number" id="conv-amount" value="1000" class="bg-transparent text-2xl font-bold text-slate-800 focus:outline-none w-full" placeholder="0">
+                                    <div class="ml-4 min-w-[100px]">
+                                        <select id="conv-from" class="w-full bg-white border border-slate-200 text-slate-700 text-sm rounded-lg p-2.5"></select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex justify-center -my-2 z-10 relative">
+                                <button onclick="swapCurrency()" class="bg-white border border-slate-200 shadow-sm rounded-full p-2 hover:bg-slate-50 text-slate-500">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5L7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <div class="bg-slate-800 p-4 rounded-xl shadow-md">
+                                <label class="block text-xs font-medium text-slate-400 mb-1">換算結果</label>
+                                <div class="flex items-center justify-between">
+                                    <span id="conv-result" class="text-2xl font-bold text-white truncate pr-4">---</span>
+                                    <div class="min-w-[100px]">
+                                        <select id="conv-to" class="w-full bg-slate-700 border border-slate-600 text-white text-sm rounded-lg p-2.5"></select>
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-end mt-2">
+                                    <div id="conv-rate-display" class="text-xs text-slate-400"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 text-xs text-slate-400 text-center">
+                            上次更新: <span id="last-updated">---</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                        <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">即使匯率 (1 TWD)</h3>
+                        <div id="quick-rates" class="grid grid-cols-2 gap-4">
+                            </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-budget" class="tab-content animate-fade-in">
+                <div class="space-y-6">
+                    <div class="bg-slate-800 text-white rounded-2xl shadow-lg p-6 transition-all duration-300">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="w-full">
+                                <h2 class="text-slate-400 text-xs uppercase tracking-wider mb-2">目前餘額 (Balance)</h2>
+                                
+                                <div id="budget-display-area">
+                                    </div>
+                            </div>
+                            <button onclick="toggleBudgetEdit()" id="budget-edit-btn" class="text-slate-400 hover:text-white ml-4 p-2 hover:bg-slate-700 rounded-full hidden">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <div id="budget-progress-area" class="hidden">
+                            <div class="relative w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                                <div id="budget-bar" class="absolute top-0 left-0 h-full bg-white transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                            <div class="flex justify-between mt-2 text-xs text-slate-400">
+                                <span id="budget-spent">已花費: NT$ 0</span>
+                                <span id="budget-total">總預算: NT$ 0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                        <h3 class="text-lg font-semibold text-slate-700 mb-4">新增支出</h3>
+                        <form onsubmit="addPersonalExpense(event)">
+                            <div class="grid grid-cols-3 gap-3 mb-4">
+                                <div class="col-span-2">
+                                    <label class="block text-xs font-medium text-slate-400 mb-1">金額</label>
+                                    <input type="number" id="exp-amount" required placeholder="0" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-slate-800 outline-none focus:ring-2 focus:ring-slate-200">
+                                </div>
+                                <div class="col-span-1">
+                                    <label class="block text-xs font-medium text-slate-400 mb-1">幣別</label>
+                                    <select id="exp-currency" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-slate-800 outline-none"></select>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3 mb-4">
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-400 mb-1">類別</label>
+                                    <select id="exp-category" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-slate-800 outline-none">
+                                        </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-400 mb-1">備註</label>
+                                    <input type="text" id="exp-note" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-slate-800 outline-none">
+                                </div>
+                            </div>
+                            <button type="submit" class="w-full bg-slate-800 text-white font-medium py-3 rounded-xl hover:bg-slate-700 transition-colors shadow-md active:scale-[0.99]">
+                                加入記帳
+                            </button>
+                        </form>
+                    </div>
+
+                    <div id="chart-container" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 hidden">
+                        <h3 class="text-sm font-semibold text-slate-500 mb-2">支出分析</h3>
+                        <div class="h-48 w-full relative">
+                            <canvas id="expenseChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <h3 class="text-sm font-semibold text-slate-500 px-2">最近紀錄</h3>
+                        <div id="expense-list" class="space-y-3"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-group" class="tab-content animate-fade-in">
+                <div id="group-view-list" class="block">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-xl font-bold text-slate-800">我的旅程</h2>
+                        <button onclick="switchGroupView('create')" class="bg-slate-800 text-white text-sm px-4 py-2 rounded-lg shadow-md hover:bg-slate-700 transition-colors">
+                            + 新增旅程
+                        </button>
+                    </div>
+                    <div id="trip-list-container" class="space-y-3"></div>
+                </div>
+
+                <div id="group-view-create" class="hidden">
+                    <button onclick="switchGroupView('list')" class="flex items-center text-slate-400 hover:text-slate-600 mb-6">
+                        &larr; 返回
+                    </button>
+                    <h2 class="text-xl font-bold text-slate-800 mb-6">建立新旅程</h2>
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-6">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">旅程名稱</label>
+                            <input type="text" id="new-trip-name" placeholder="例如：墾丁三天兩夜" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-2">成員名單</label>
+                            <div id="new-members-tags" class="flex flex-wrap gap-2 mb-3"></div>
+                            <div class="flex gap-2">
+                                <input type="text" id="new-member-input" placeholder="輸入成員名字" class="flex-1 bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm outline-none">
+                                <button onclick="addNewMemberTag()" class="bg-slate-200 text-slate-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-300">新增</button>
+                            </div>
+                        </div>
+                        <button onclick="createNewTrip()" class="w-full bg-slate-800 text-white py-3 rounded-xl font-bold shadow-md">開始記帳</button>
+                    </div>
+                </div>
+
+                <div id="group-view-details" class="hidden space-y-6">
+                    <div class="flex items-center gap-3">
+                        <button onclick="switchGroupView('list')" class="p-2 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-600">
+                            &larr;
+                        </button>
+                        <div>
+                            <h2 id="trip-detail-title" class="text-xl font-bold text-slate-800 leading-tight"></h2>
+                            <p id="trip-detail-members" class="text-xs text-slate-400"></p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                        <h3 class="text-lg font-semibold text-slate-700 mb-4">新增帳目</h3>
+                        <form onsubmit="addGroupExpense(event)" class="space-y-4">
+                            <div class="grid grid-cols-3 gap-3">
+                                <div class="col-span-2">
+                                    <label class="block text-xs text-slate-400 mb-1">項目</label>
+                                    <input type="text" id="g-exp-desc" placeholder="例如：晚餐" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-slate-400 mb-1">金額</label>
+                                    <input type="number" id="g-exp-amount" placeholder="0" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 outline-none">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">誰先墊付？</label>
+                                <select id="g-exp-payer" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 outline-none"></select>
+                            </div>
+                            <div class="pt-2">
+                                <label class="block text-xs text-slate-400 mb-2">分攤給誰？ <span class="text-[10px]">(點擊切換)</span></label>
+                                <div id="g-exp-involved" class="flex flex-wrap gap-2"></div>
+                            </div>
+                            <button type="submit" class="w-full bg-slate-800 text-white font-medium py-3 rounded-xl hover:bg-slate-700 shadow-md mt-2">加入帳目</button>
+                        </form>
+                    </div>
+
+                    <div class="bg-slate-800 text-white rounded-2xl shadow-lg p-6">
+                        <div class="flex items-center gap-2 mb-4">
+                            <h3 class="text-xs uppercase tracking-wider text-slate-400">智慧結算</h3>
+                        </div>
+                        <div class="mb-6 border-b border-slate-700 pb-4 flex justify-between items-center">
+                            <div class="text-xs text-slate-400">總支出</div>
+                            <div id="g-total-cost" class="text-2xl font-bold">$0</div>
+                        </div>
+                        <div id="g-settlements" class="space-y-3"></div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <h3 class="text-sm font-semibold text-slate-500 px-2">帳目明細</h3>
+                        <div id="g-expense-list" class="space-y-3"></div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <nav class="bg-white border-t border-slate-200 px-4 py-3 pb-6 sticky bottom-0 z-30 safe-area-pb">
+            <div class="flex justify-around items-center">
+                <button onclick="switchTab('converter')" id="nav-converter" class="nav-btn active flex flex-col items-center gap-1 text-slate-400 transition-colors">
+                    <div class="p-1.5 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" /></svg>
+                    </div>
+                    <span class="text-xs font-medium">匯率計算</span>
+                </button>
+                <button onclick="switchTab('budget')" id="nav-budget" class="nav-btn flex flex-col items-center gap-1 text-slate-400 transition-colors">
+                    <div class="p-1.5 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" /></svg>
+                    </div>
+                    <span class="text-xs font-medium">個人記帳</span>
+                </button>
+                <button onclick="switchTab('group')" id="nav-group" class="nav-btn flex flex-col items-center gap-1 text-slate-400 transition-colors">
+                    <div class="p-1.5 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" /></svg>
+                    </div>
+                    <span class="text-xs font-medium">群組分帳</span>
+                </button>
+            </div>
+        </nav>
+    </div>
+
+    <script>
+        // --- Data & Config ---
+        const STORAGE_KEYS = {
+            EXPENSES: 'tp_expenses',
+            BUDGET: 'tp_budget',
+            TRIPS: 'tp_trips'
+        };
+
+        const CURRENCIES = {
+            TWD: '新台幣', USD: '美金', JPY: '日圓', KRW: '韓元', EUR: '歐元', CNY: '人民幣', GBP: '英鎊', AUD: '澳幣'
+        };
+        const SYMBOLS = { TWD: 'NT$', USD: '$', JPY: '¥', KRW: '₩', EUR: '€', CNY: '¥', GBP: '£', AUD: 'A$' };
+        const CATEGORIES = ['飲食 Food', '交通 Transport', '購物 Shopping', '住宿 Stay', '票券 Ticket', '其他 Other'];
+
+        // Global State
+        let state = {
+            // apiKey removed
+            rates: {},
+            lastUpdated: '---',
+            budget: Number(localStorage.getItem(STORAGE_KEYS.BUDGET)) || 0,
+            personalExpenses: JSON.parse(localStorage.getItem(STORAGE_KEYS.EXPENSES)) || [],
+            trips: JSON.parse(localStorage.getItem(STORAGE_KEYS.TRIPS)) || [],
+            // Group View State
+            activeTripId: null,
+            newMembers: ['我'],
+            currentInvolved: new Set()
+        };
+
+        let expenseChartInstance = null;
+
+        // --- Initialization ---
+        function init() {
+            populateSelects();
+            renderConverter();
+            renderBudget();
+            renderGroupList();
+            
+            // Listeners
+            document.getElementById('conv-amount').addEventListener('input', renderConverterResult);
+            document.getElementById('conv-from').addEventListener('change', renderConverterResult);
+            document.getElementById('conv-to').addEventListener('change', renderConverterResult);
+            
+            // 自動抓取免費匯率
+            fetchRates();
+        }
+
+        function populateSelects() {
+            const opts = Object.keys(CURRENCIES).map(c => `<option value="${c}">${c}</option>`).join('');
+            document.getElementById('conv-from').innerHTML = opts;
+            document.getElementById('conv-to').innerHTML = opts;
+            document.getElementById('conv-to').value = 'JPY';
+            document.getElementById('exp-currency').innerHTML = opts;
+            document.getElementById('exp-currency').value = 'JPY';
+            
+            document.getElementById('exp-category').innerHTML = CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('');
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            
+            document.querySelectorAll('.nav-btn').forEach(el => {
+                el.classList.remove('active', 'text-slate-800');
+                el.classList.add('text-slate-400');
+                el.querySelector('div').classList.remove('bg-slate-100');
+            });
+            const btn = document.getElementById(`nav-${tabName}`);
+            btn.classList.add('active', 'text-slate-800');
+            btn.classList.remove('text-slate-400');
+            btn.querySelector('div').classList.add('bg-slate-100');
+            
+            if (tabName === 'budget') renderChart();
+        }
+
+        // --- Feature: Converter (Changed to Free API) ---
+        async function fetchRates() {
+            const btn = document.getElementById('refresh-btn');
+            btn.classList.add('animate-spin');
+
+            try {
+                // 使用免費的 ExchangeRate-API
+                const response = await fetch('https://api.exchangerate-api.com/v4/latest/TWD');
+                const data = await response.json();
+                
+                // 資料結構映射
+                state.rates = data.rates || {};
+                state.lastUpdated = new Date().toLocaleTimeString();
+                
+                document.getElementById('last-updated').textContent = state.lastUpdated;
+                renderConverterResult();
+                renderQuickRates();
+                
+            } catch (e) {
+                console.error(e);
+                alert('匯率更新失敗，請檢查網路連線');
+            } finally {
+                btn.classList.remove('animate-spin');
+            }
+        }
+
+        function swapCurrency() {
+            const from = document.getElementById('conv-from');
+            const to = document.getElementById('conv-to');
+            const temp = from.value;
+            from.value = to.value;
+            to.value = temp;
+            renderConverterResult();
+        }
+
+        function renderConverter() {
+             // Init render if needed
+        }
+
+        function renderConverterResult() {
+            const amount = parseFloat(document.getElementById('conv-amount').value) || 0;
+            const from = document.getElementById('conv-from').value;
+            const to = document.getElementById('conv-to').value;
+            
+            let rate = 0;
+            // Logic: ExchangeRate-API returns rates based on TWD
+            // Rates are: 1 TWD = X Target
+            
+            if (Object.keys(state.rates).length === 0 && from !== to) {
+                document.getElementById('conv-result').textContent = "---";
+                document.getElementById('conv-rate-display').textContent = "載入中...";
+                return;
+            }
+
+            // Cross rate calculation
+            let rateFrom = 1;
+            let rateTo = 1;
+            
+            if (from !== 'TWD') rateFrom = state.rates[from] || 1;
+            if (to !== 'TWD') rateTo = state.rates[to] || 1;
+            
+            // Formula: (Amount / RateFrom) * RateTo
+            // Example: 100 JPY -> USD
+            // 1 TWD = 4.7 JPY (rateFrom)
+            // 1 TWD = 0.031 USD (rateTo)
+            // 100 JPY = 100 / 4.7 TWD = 21.27 TWD
+            // 21.27 TWD * 0.031 = 0.65 USD
+            
+            // Adjust because API gives 1 TWD = X Currency
+            // So: Amount * (RateTo / RateFrom)
+            
+            if (from === 'TWD') rate = state.rates[to];
+            else if (to === 'TWD') rate = 1 / state.rates[from];
+            else rate = state.rates[to] / state.rates[from];
+
+            if (from === to) rate = 1;
+
+            const result = amount * rate;
+            
+            let resultText = result.toLocaleString(undefined, { maximumFractionDigits: 2 });
+            if (to === 'JPY' || to === 'KRW') resultText = Math.round(result).toLocaleString();
+            
+            document.getElementById('conv-result').textContent = resultText;
+            document.getElementById('conv-rate-display').textContent = `1 ${from} ≈ ${rate.toFixed(4)} ${to}`;
+        }
+
+        function renderQuickRates() {
+            const container = document.getElementById('quick-rates');
+            // 顯示常用貨幣
+            const targets = ['USD','JPY','KRW','EUR','CNY','GBP'];
+            
+            container.innerHTML = targets.map(code => {
+                const val = state.rates[code] ? state.rates[code].toFixed(code === 'JPY' || code === 'KRW' ? 4 : 2) : '-';
+                return `
+                <div class="flex justify-between items-center p-3 rounded-lg bg-slate-50 border border-slate-100">
+                    <span class="font-medium text-slate-700">${code}</span>
+                    <span class="font-mono text-slate-600">${val}</span>
+                </div>`;
+            }).join('');
+        }
+
+        // --- Feature: Personal Budget (Keep unchanged) ---
+        function renderBudget() {
+            const displayArea = document.getElementById('budget-display-area');
+            const progressArea = document.getElementById('budget-progress-area');
+            const editBtn = document.getElementById('budget-edit-btn');
+            
+            const totalSpent = state.personalExpenses.reduce((acc, curr) => acc + curr.amountInBase, 0);
+            const remaining = state.budget - totalSpent;
+            
+            if (state.budget === 0) {
+                displayArea.innerHTML = `
+                    <button onclick="toggleBudgetEdit()" class="text-2xl font-bold text-slate-300 hover:text-white border-b border-dashed border-slate-600 pb-1">
+                        設定此次/月預算
+                    </button>`;
+                progressArea.classList.add('hidden');
+                editBtn.classList.add('hidden');
+            } else {
+                displayArea.innerHTML = `<div class="text-3xl font-bold">NT$ ${Math.round(remaining).toLocaleString()}</div>`;
+                progressArea.classList.remove('hidden');
+                editBtn.classList.remove('hidden');
+                
+                // Update Progress
+                const pct = Math.min(100, (totalSpent / state.budget) * 100);
+                document.getElementById('budget-bar').style.width = `${pct}%`;
+                if(remaining < 0) document.getElementById('budget-bar').classList.replace('bg-white', 'bg-red-500');
+                else document.getElementById('budget-bar').classList.replace('bg-red-500', 'bg-white');
+                
+                document.getElementById('budget-spent').textContent = `已花費: NT$ ${Math.round(totalSpent).toLocaleString()}`;
+                document.getElementById('budget-total').textContent = `總預算: NT$ ${state.budget.toLocaleString()}`;
+            }
+
+            renderExpenseList();
+        }
+
+        function toggleBudgetEdit() {
+            const area = document.getElementById('budget-display-area');
+            if (area.querySelector('input')) return; 
+
+            area.innerHTML = `
+                <div class="animate-fade-in w-full">
+                    <div class="flex items-baseline border-b-2 border-slate-600 pb-1 mb-3">
+                        <span class="text-2xl text-slate-400 mr-2 font-medium">NT$</span>
+                        <input type="number" id="new-budget-input" value="${state.budget === 0 ? '' : state.budget}" class="w-full bg-transparent text-4xl font-bold text-white placeholder-slate-600 outline-none" autoFocus>
+                    </div>
+                    <div class="flex gap-3 justify-end">
+                        <button onclick="saveBudget()" class="w-8 h-8 rounded-full bg-white text-slate-900 flex items-center justify-center font-bold">✓</button>
+                        <button onclick="renderBudget()" class="w-8 h-8 rounded-full bg-slate-700 text-slate-300 flex items-center justify-center">✕</button>
+                    </div>
+                </div>`;
+            document.getElementById('new-budget-input').focus();
+        }
+
+        function saveBudget() {
+            const val = Number(document.getElementById('new-budget-input').value);
+            state.budget = val;
+            localStorage.setItem(STORAGE_KEYS.BUDGET, val);
+            renderBudget();
+        }
+
+        function addPersonalExpense(e) {
+            e.preventDefault();
+            const amount = parseFloat(document.getElementById('exp-amount').value);
+            const currency = document.getElementById('exp-currency').value;
+            const category = document.getElementById('exp-category').value;
+            const note = document.getElementById('exp-note').value;
+
+            let rate = 1;
+            // Use TWD based rate from state
+            if (currency !== 'TWD') {
+                const r = state.rates[currency];
+                // 1 TWD = r Currency => 1 Currency = 1/r TWD
+                if (!r) { 
+                     // Fallback if no rate loaded yet
+                     rate = 1; 
+                } else {
+                     rate = 1/r;
+                }
+            }
+
+            const newExp = {
+                id: Date.now(),
+                amount,
+                currency,
+                amountInBase: amount * rate,
+                category,
+                note,
+                date: new Date().toLocaleDateString()
+            };
+
+            state.personalExpenses.unshift(newExp);
+            localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(state.personalExpenses));
+            
+            document.getElementById('exp-amount').value = '';
+            document.getElementById('exp-note').value = '';
+            
+            renderBudget();
+            renderChart();
+        }
+
+        function renderExpenseList() {
+            const container = document.getElementById('expense-list');
+            container.innerHTML = state.personalExpenses.map(exp => `
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center relative group">
+                    <div class="flex items-center gap-3">
+                        <div class="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 text-xs font-bold">
+                            ${exp.category.substring(0, 2)}
+                        </div>
+                        <div>
+                            <div class="text-sm font-medium text-slate-800">${exp.note || exp.category}</div>
+                            <div class="text-xs text-slate-400">${exp.date}</div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-sm font-bold text-slate-800">${SYMBOLS[exp.currency]}${exp.amount.toLocaleString()}</div>
+                        ${exp.currency !== 'TWD' ? `<div class="text-xs text-slate-400">≈ NT$ ${Math.round(exp.amountInBase).toLocaleString()}</div>` : ''}
+                    </div>
+                     <button onclick="deletePersonalExpense(${exp.id})" class="absolute right-2 top-2 text-red-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+                </div>
+            `).join('');
+        }
+
+        function deletePersonalExpense(id) {
+            if(!confirm("確定刪除?")) return;
+            state.personalExpenses = state.personalExpenses.filter(e => e.id !== id);
+            localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(state.personalExpenses));
+            renderBudget();
+            renderChart();
+        }
+
+        function renderChart() {
+            const ctx = document.getElementById('expenseChart');
+            const container = document.getElementById('chart-container');
+            
+            if (state.personalExpenses.length === 0) {
+                container.classList.add('hidden');
+                return;
+            }
+            container.classList.remove('hidden');
+
+            const dataMap = {};
+            state.personalExpenses.forEach(e => {
+                dataMap[e.category] = (dataMap[e.category] || 0) + e.amountInBase;
+            });
+
+            if (expenseChartInstance) expenseChartInstance.destroy();
+
+            expenseChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(dataMap),
+                    datasets: [{
+                        data: Object.values(dataMap),
+                        backgroundColor: ['#64748b', '#94a3b8', '#cbd5e1', '#475569', '#334155', '#1e293b'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right', labels: { boxWidth: 12, font: { size: 10 } } }
+                    }
+                }
+            });
+        }
+
+        // --- Feature: Group Splitter (Keep unchanged) ---
+        
+        function switchGroupView(view) {
+            ['list', 'create', 'details'].forEach(v => {
+                const el = document.getElementById(`group-view-${v}`);
+                if(v === view) el.classList.remove('hidden');
+                else el.classList.add('hidden');
+            });
+            if(view === 'list') renderGroupList();
+        }
+
+        function renderGroupList() {
+            const container = document.getElementById('trip-list-container');
+            if (state.trips.length === 0) {
+                container.innerHTML = `
+                    <div class="flex flex-col items-center justify-center py-16 bg-white rounded-2xl border border-dashed border-slate-300">
+                        <p class="text-slate-500 font-medium">還沒有任何旅程</p>
+                    </div>`;
+                return;
+            }
+            container.innerHTML = state.trips.map(trip => `
+                <div onclick="openTrip('${trip.id}')" class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 cursor-pointer flex justify-between items-center group">
+                    <div>
+                        <h3 class="font-bold text-slate-800">${trip.name}</h3>
+                        <p class="text-xs text-slate-400 mt-1">${trip.members.length} 位成員 • ${trip.expenses.length} 筆帳目</p>
+                    </div>
+                    <button onclick="deleteTrip('${trip.id}', event)" class="p-3 text-slate-400 hover:text-red-500 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function addNewMemberTag() {
+            const input = document.getElementById('new-member-input');
+            const val = input.value.trim();
+            if (val) {
+                state.newMembers.push(val);
+                input.value = '';
+                renderNewMembers();
+            }
+        }
+        
+        function renderNewMembers() {
+            const container = document.getElementById('new-members-tags');
+            container.innerHTML = state.newMembers.map((m, i) => `
+                <div class="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-sm flex items-center">
+                    ${m} ${i > 0 ? `<button onclick="removeNewMember(${i})" class="ml-2 text-slate-400">×</button>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function removeNewMember(idx) {
+            state.newMembers.splice(idx, 1);
+            renderNewMembers();
+        }
+
+        function createNewTrip() {
+            const name = document.getElementById('new-trip-name').value;
+            if (!name || state.newMembers.length === 0) { alert('請填寫完整'); return; }
+            
+            const newTrip = {
+                id: Date.now().toString(),
+                name,
+                members: state.newMembers.map((n, i) => ({ id: `${Date.now()}-${i}`, name: n })),
+                expenses: [],
+                lastUpdated: Date.now()
+            };
+            
+            state.trips.unshift(newTrip);
+            localStorage.setItem(STORAGE_KEYS.TRIPS, JSON.stringify(state.trips));
+            
+            // Reset
+            document.getElementById('new-trip-name').value = '';
+            state.newMembers = ['我'];
+            renderNewMembers();
+            
+            openTrip(newTrip.id);
+        }
+
+        function deleteTrip(id, e) {
+            e.stopPropagation();
+            if(confirm('確定刪除此旅程?')) {
+                state.trips = state.trips.filter(t => t.id !== id);
+                localStorage.setItem(STORAGE_KEYS.TRIPS, JSON.stringify(state.trips));
+                renderGroupList();
+            }
+        }
+
+        function openTrip(id) {
+            state.activeTripId = id;
+            const trip = state.trips.find(t => t.id === id);
+            
+            document.getElementById('trip-detail-title').textContent = trip.name;
+            document.getElementById('trip-detail-members').textContent = `成員: ${trip.members.map(m => m.name).join(', ')}`;
+            
+            // Init Payer Select
+            const payerSelect = document.getElementById('g-exp-payer');
+            payerSelect.innerHTML = trip.members.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+            
+            // Init Involved Buttons
+            state.currentInvolved = new Set(trip.members.map(m => m.id));
+            renderInvolvedButtons();
+            
+            renderGroupExpenses();
+            switchGroupView('details');
+        }
+
+        function renderInvolvedButtons() {
+            const trip = state.trips.find(t => t.id === state.activeTripId);
+            const container = document.getElementById('g-exp-involved');
+            container.innerHTML = trip.members.map(m => {
+                const selected = state.currentInvolved.has(m.id);
+                return `<button type="button" onclick="toggleInvolved('${m.id}')" 
+                    class="px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${selected ? 'bg-slate-700 text-white border-slate-700' : 'bg-white text-slate-400 border-slate-200'}">
+                    ${m.name}</button>`;
+            }).join('');
+        }
+
+        function toggleInvolved(id) {
+            if (state.currentInvolved.has(id)) state.currentInvolved.delete(id);
+            else state.currentInvolved.add(id);
+            renderInvolvedButtons();
+        }
+
+        function addGroupExpense(e) {
+            e.preventDefault();
+            const trip = state.trips.find(t => t.id === state.activeTripId);
+            
+            const desc = document.getElementById('g-exp-desc').value;
+            const amount = parseFloat(document.getElementById('g-exp-amount').value);
+            const payerId = document.getElementById('g-exp-payer').value;
+            
+            if (!desc || !amount || state.currentInvolved.size === 0) { alert('資料不完整'); return; }
+            
+            trip.expenses.unshift({
+                id: Date.now().toString(),
+                description: desc,
+                amount,
+                payerId,
+                involvedMemberIds: Array.from(state.currentInvolved),
+                date: new Date().toLocaleDateString()
+            });
+            
+            localStorage.setItem(STORAGE_KEYS.TRIPS, JSON.stringify(state.trips));
+            
+            document.getElementById('g-exp-desc').value = '';
+            document.getElementById('g-exp-amount').value = '';
+            
+            renderGroupExpenses();
+        }
+
+        function renderGroupExpenses() {
+            const trip = state.trips.find(t => t.id === state.activeTripId);
+            const list = document.getElementById('g-expense-list');
+            
+            // Calculate Stats
+            let total = 0;
+            const balances = {}; 
+            trip.members.forEach(m => balances[m.id] = 0);
+            
+            trip.expenses.forEach(exp => {
+                total += exp.amount;
+                if (balances[exp.payerId] !== undefined) balances[exp.payerId] += exp.amount;
+                const share = exp.amount / exp.involvedMemberIds.length;
+                exp.involvedMemberIds.forEach(mid => {
+                    if (balances[mid] !== undefined) balances[mid] -= share;
+                });
+            });
+            
+            document.getElementById('g-total-cost').textContent = `$${Math.round(total).toLocaleString()}`;
+
+            // Render Settlements (Greedy)
+            const debtors = [], creditors = [];
+            Object.entries(balances).forEach(([id, bal]) => {
+                if (bal < -0.01) debtors.push({id, amt: -bal});
+                if (bal > 0.01) creditors.push({id, amt: bal});
+            });
+            
+            let debtsHTML = '';
+            let i = 0, j = 0;
+            while(i < debtors.length && j < creditors.length) {
+                const d = debtors[i], c = creditors[j];
+                const amt = Math.min(d.amt, c.amt);
+                if (amt > 0) {
+                    const fromName = trip.members.find(m=>m.id===d.id).name;
+                    const toName = trip.members.find(m=>m.id===c.id).name;
+                    debtsHTML += `
+                    <div class="flex items-center justify-between bg-slate-700 p-3 rounded-xl border border-slate-600">
+                        <div class="flex items-center gap-2 text-sm">
+                            <span class="font-bold text-red-300">${fromName}</span>
+                            <span class="text-xs text-slate-500">需給</span>
+                            <span class="font-bold text-green-300">${toName}</span>
+                        </div>
+                        <div class="font-mono font-bold text-sm">$${Math.round(amt).toLocaleString()}</div>
+                    </div>`;
+                }
+                d.amt -= amt; c.amt -= amt;
+                if(d.amt < 0.01) i++;
+                if(c.amt < 0.01) j++;
+            }
+            document.getElementById('g-settlements').innerHTML = debtsHTML || '<div class="text-center text-slate-500 text-sm">目前已結清 🎉</div>';
+
+            // Render List
+            list.innerHTML = trip.expenses.map(exp => {
+                const payer = trip.members.find(m=>m.id===exp.payerId)?.name || '?';
+                return `
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center relative group">
+                    <div>
+                        <div class="text-sm font-medium text-slate-800">${exp.description}</div>
+                        <div class="text-xs text-slate-400 mt-0.5">
+                            <span class="bg-slate-100 px-1 rounded text-slate-600">${payer}</span> 先付
+                        </div>
+                    </div>
+                    <div class="text-lg font-bold text-slate-800">$${exp.amount.toLocaleString()}</div>
+                    <button onclick="deleteGroupExpense('${exp.id}')" class="absolute right-2 top-2 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500">✕</button>
+                </div>`;
+            }).join('');
+        }
+
+        function deleteGroupExpense(id) {
+            if (!confirm('刪除此帳目?')) return;
+            const trip = state.trips.find(t => t.id === state.activeTripId);
+            trip.expenses = trip.expenses.filter(e => e.id !== id);
+            localStorage.setItem(STORAGE_KEYS.TRIPS, JSON.stringify(state.trips));
+            renderGroupExpenses();
+        }
+
+        // Start
+        init();
+        renderNewMembers(); // Init tag
+    </script>
+</body>
+</html>
